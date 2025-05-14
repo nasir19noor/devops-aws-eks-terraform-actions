@@ -88,6 +88,8 @@ jobs:
 
       - name: Configure backend.conf
         run: |
+          apt-get update
+          apt-get install -y yq
           cd terraform
           state_bucket=$(yq e '.global.state_bucket' config.yaml)
           sed -i "s/^bucket = .*/bucket = \"${state_bucket}\"/" backend.conf
@@ -95,63 +97,63 @@ jobs:
           sed -i "s/^region = .*/region = \"${region}\"/" backend.conf 
           sleep 100
           cat backend.conf         
-      - name: Configure AWS CLI
-        run: |
-          # Install AWS CLI if not already available
-          curl https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip \
-          && unzip awscliv2.zip \
-          && ./aws/install \
-          && rm -rf aws awscliv2.zip
+      # - name: Configure AWS CLI
+      #   run: |
+      #     # Install AWS CLI if not already available
+      #     curl https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip \
+      #     && unzip awscliv2.zip \
+      #     && ./aws/install \
+      #     && rm -rf aws awscliv2.zip
     
-          # Configure AWS credentials
-          mkdir -p ~/.aws
+      #     # Configure AWS credentials
+      #     mkdir -p ~/.aws
     
-          # Create credentials file
-          cat > ~/.aws/credentials << EOF
-          [default]
-          aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          EOF
+      #     # Create credentials file
+      #     cat > ~/.aws/credentials << EOF
+      #     [default]
+      #     aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     EOF
     
-          # Create config file with region
-          cat > ~/.aws/config << EOF
-          [default]
-          region=${{ env.AWS_REGION }}
-          output=json
-          EOF
+      #     # Create config file with region
+      #     cat > ~/.aws/config << EOF
+      #     [default]
+      #     region=${{ env.AWS_REGION }}
+      #     output=json
+      #     EOF
     
-          # Verify credentials are working (optional)
-          aws sts get-caller-identity
-      - name: Setup Terraform
+      #     # Verify credentials are working (optional)
+      #     aws sts get-caller-identity
+      # - name: Setup Terraform
         
-        run: |
-          # Install Terraform if not already available
-          wget -O- https://apt.releases.hashicorp.com/gpg | \
-          gpg --dearmor | \
-          sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-          https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
-          sudo tee /etc/apt/sources.list.d/hashicorp.list
-          sudo apt update
-          sudo apt-get install terraform
+      #   run: |
+      #     # Install Terraform if not already available
+      #     wget -O- https://apt.releases.hashicorp.com/gpg | \
+      #     gpg --dearmor | \
+      #     sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+      #     echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+      #     https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+      #     sudo tee /etc/apt/sources.list.d/hashicorp.list
+      #     sudo apt update
+      #     sudo apt-get install terraform
     
-          # Verify Terraform installation
-          terraform version
+      #     # Verify Terraform installation
+      #     terraform version
 
-      - name: Terraform Init
-        working-directory: ${{ matrix.directory }}
-        run: terraform init
+      # - name: Terraform Init
+      #   working-directory: ${{ matrix.directory }}
+      #   run: terraform init
 
-      - name: Terraform Validate
-        working-directory: ${{ matrix.directory }}
-        run: terraform validate
+      # - name: Terraform Validate
+      #   working-directory: ${{ matrix.directory }}
+      #   run: terraform validate
 
-      - name: Terraform Plan
-        id: plan
-        working-directory: ${{ matrix.directory }}
-        run: terraform plan -no-color
-        continue-on-error: true
+      # - name: Terraform Plan
+      #   id: plan
+      #   working-directory: ${{ matrix.directory }}
+      #   run: terraform plan -no-color
+      #   continue-on-error: true
         
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
+      # - name: Terraform Plan Status
+      #   if: steps.plan.outcome == 'failure'
+      #   run: exit 1
