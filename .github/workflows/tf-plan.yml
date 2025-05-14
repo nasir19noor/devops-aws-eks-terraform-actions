@@ -88,8 +88,8 @@ jobs:
 
       - name: Configure backend.conf
         run: |
-          apt-get update
-          apt-get install -y yq
+          sudo apt-get update
+          sudo apt-get install -y yq
           cd terraform
           state_bucket=$(yq e '.global.state_bucket' config.yaml)
           sed -i "s/^bucket = .*/bucket = \"${state_bucket}\"/" backend.conf
