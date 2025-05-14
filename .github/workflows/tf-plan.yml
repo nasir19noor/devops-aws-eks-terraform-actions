@@ -86,6 +86,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
+      - name: Configure backend.conf
+        run: |
+          cd terraform
+          state_bucket=$(yq e '.global.state_bucket' config.yaml)
+          sed -i "s/^bucket = .*/bucket = \"${state_bucket}\"/" backend.conf
+          region=$(yq e '.global.region' config.yaml)
+          sed -i "s/^region = .*/region = \"${region}\"/" backend.conf 
+          cat backend.conf         
       - name: Configure AWS CLI
         run: |
           # Install AWS CLI if not already available

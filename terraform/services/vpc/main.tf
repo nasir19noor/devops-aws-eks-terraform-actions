@@ -1,5 +1,5 @@
 module "vpc" {
-  source = "./../../../modules/vpc" 
+  source = "git::https://github.com/nasir19noor/terraform.git//aws/modules/vpc" 
 
   cidr                                     = local.cidr_block
   instance_tenancy                         = local.instance_tenancy
