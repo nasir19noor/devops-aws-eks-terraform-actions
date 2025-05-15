@@ -1,4 +1,4 @@
-name: 'Terraform PApply'
+name: 'Terraform Apply'
 
 on:
   push:
