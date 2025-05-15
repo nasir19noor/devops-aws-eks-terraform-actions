@@ -3,7 +3,7 @@ global:
   state_bucket: "nasir-eks-terraform-state"
 
 network:
-  vpc_name: "eks-vpc"
+  vpc_name: "nasir-eks-vpc"
   description: "eks-vpc"
   cidr_block: "10.0.0.0/16"
   instance_tenancy: "default"
