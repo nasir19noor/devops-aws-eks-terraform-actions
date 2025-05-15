@@ -54,7 +54,7 @@ output "subnet_named_map" {
   description = "Map of subnet names to subnet IDs"
   value = {
     for i, id in module.subnets.subnet_ids : 
-      "data-subnet-${i+1}" => id
+      "subnet-${i+1}" => id
   }
 }
 
