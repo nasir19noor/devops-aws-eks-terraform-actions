@@ -7,7 +7,7 @@ on:
     paths:
       - 'terraform/services/**.tf' 
       - 'terraform/services/**.tfvars'  
-      - '.github/workflows/tf-plan.yml'
+      - '.github/workflows/tf-apply.yml'
 
 env:
   TF_VERSION: '1.11.4'  
