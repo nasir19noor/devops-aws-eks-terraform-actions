@@ -16,6 +16,11 @@ output "default_security_group_id" {
   value       = module.vpc.default_security_group_id
 }
 
+# output "main_route_table_id" {
+#   description = "The ID of the route table created by default on VPC creation"
+#   value       = module.vpc.main_route_table_id
+# }
+
 output "igw_id" {
   description = "igw id"
   value       = aws_internet_gateway.igw.id
