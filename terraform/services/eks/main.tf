@@ -272,7 +272,3 @@ resource "aws_iam_policy" "additional" {
 }
 
 # Output the admin role ARN for use in assume role commands
-output "eks_admin_role_arn" {
-  description = "ARN of the EKS admin IAM role"
-  value       = aws_iam_role.eks_admin_role.arn
-}
