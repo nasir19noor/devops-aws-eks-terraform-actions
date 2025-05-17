@@ -23,6 +23,10 @@ ec2:
       delete_on_termination: true
       encrypted: true
 
+eks:
+  cluster_name: "nasir-cluster" 
+  cluster_version: "1.32"     
+
       
  
 

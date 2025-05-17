@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Build to Docker Hub
 
 on:
   push:
@@ -68,17 +68,17 @@ jobs:
             docker push $tag
           done
 
-      - name: Add SSH Key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # ssh-keyscan -H ${{ secrets.INSTANCE_IP }} >> ~/.ssh/known_hosts
-          echo "${{ secrets.INSTANCE_IP }}" >> ~/.ssh/known_hosts
-      - name: Deploy Application
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.USER }}@${{ secrets.INSTANCE_IP }} << 'EOF'
-          docker pull kangnasir/clock-app:latest
-          docker stop $(docker ps -a -q) || true
-          docker run -d -p 5000:5000 kangnasir/clock-app:latest
-          EOF
+      # - name: Add SSH Key
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+      #     chmod 600 ~/.ssh/id_rsa
+      #     # ssh-keyscan -H ${{ secrets.INSTANCE_IP }} >> ~/.ssh/known_hosts
+      #     echo "${{ secrets.INSTANCE_IP }}" >> ~/.ssh/known_hosts
+      # - name: Deploy Application
+      #   run: |
+      #     ssh -o StrictHostKeyChecking=no ${{ secrets.USER }}@${{ secrets.INSTANCE_IP }} << 'EOF'
+      #     docker pull kangnasir/clock-app:latest
+      #     docker stop $(docker ps -a -q) || true
+      #     docker run -d -p 5000:5000 kangnasir/clock-app:latest
+      #     EOF

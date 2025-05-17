@@ -1,5 +1,5 @@
 module "subnets" {
-  source = "git::https://github.com/nasir19noor/terraform.git//aws/modules/subnet?ref=main"
+  source = "git::https://github.com/nasir19noor/terraform.git//aws/modules/subnet"
   
   region        = local.region
   vpc_id        = local.vpc_id

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clock-app-config
+  labels:
+    app: clock-app
+data:
+  PORT: "5000"
