@@ -10,7 +10,7 @@ on:
 
 env:
   AWS_REGION: 'ap-southeast-1'  
-  EKS_CLUSTER_NAME: "nasir-eks" 
+  EKS_CLUSTER_NAME: 'nasir-cluster' 
 
 jobs:
   deploy:

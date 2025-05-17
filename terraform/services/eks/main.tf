@@ -271,4 +271,3 @@ resource "aws_iam_policy" "additional" {
   })
 }
 
-# Output the admin role ARN for use in assume role commands
