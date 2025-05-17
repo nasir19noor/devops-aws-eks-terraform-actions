@@ -91,11 +91,11 @@ module "eks" {
   
   cluster_security_group_additional_rules = {
     ingress_custom_rule_1 = {
-      description = "Allow inbound traffic from Azure pipeline agent"
+      description = "Allow inbound traffic from anywhere"
       protocol    = "tcp"
       from_port   = 443
       to_port     = 443
-      cidr_blocks = ["10.0.0.0/16"]
+      cidr_blocks = ["0.0.0.0/0"]
       type        = "ingress"
     }  
   }
