@@ -75,3 +75,5 @@ jobs:
         kubectl get pods -l app=clock-app
         kubectl get svc clock-app
         kubectl get ingress clock-app-ingress
+
+        
