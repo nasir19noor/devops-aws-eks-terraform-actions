@@ -5,6 +5,7 @@ on:
     branches: [ '**' ]  # Adjust branch name as needed
     paths:
       - 'k8s/*.*' 
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:    # Allows manual triggering from GitHub UI
 
 env:
