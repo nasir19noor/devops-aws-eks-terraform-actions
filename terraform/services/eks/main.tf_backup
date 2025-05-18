@@ -20,6 +20,10 @@ module "eks" {
   create_cluster_security_group = local.create_cluster_security_group
   create_node_security_group    = local.create_node_security_group
 
+  cluster_endpoint_public_access = true  
+  cluster_endpoint_private_access = true 
+  cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]   
+
   # EKS Managed Node Group(s)
   eks_managed_node_group_defaults = {
     ami_type               = "AL2_x86_64"
@@ -205,9 +209,18 @@ provider "kubernetes" {
   }
 }
 
+# Add a time delay to ensure cluster is ready
+resource "time_sleep" "wait_for_cluster" {
+  depends_on = [module.eks]
+  create_duration = "30s"
+}
+
 # Create aws-auth ConfigMap to map IAM roles to Kubernetes RBAC
 resource "kubernetes_config_map" "aws_auth" {
-  depends_on = [module.eks]
+  depends_on = [
+    module.eks,
+    time_sleep.wait_for_cluster
+  ]
   
   metadata {
     name      = "aws-auth"

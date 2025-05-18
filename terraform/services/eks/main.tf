@@ -212,7 +212,7 @@ provider "kubernetes" {
 # Add a time delay to ensure cluster is ready
 resource "time_sleep" "wait_for_cluster" {
   depends_on = [module.eks]
-  create_duration = "30s"
+  create_duration = "600s"
 }
 
 # Create aws-auth ConfigMap to map IAM roles to Kubernetes RBAC
