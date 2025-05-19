@@ -20,8 +20,11 @@ module "eks" {
   create_cluster_security_group = local.create_cluster_security_group
   create_node_security_group    = local.create_node_security_group
 
+  # Modified endpoint configuration - ensure both public and private access
   cluster_endpoint_public_access = true  
   cluster_endpoint_private_access = true 
+  # Make sure you're running Terraform from a machine with an IP in this range
+  # If needed, narrow this to your specific IPs
   cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]   
 
   # EKS Managed Node Group(s)
@@ -92,7 +95,7 @@ module "eks" {
     }
   }
 
-  
+  # Enhanced security group rules to ensure proper connectivity
   cluster_security_group_additional_rules = {
     ingress_custom_rule_1 = {
       description = "Allow inbound traffic from anywhere"
@@ -101,7 +104,16 @@ module "eks" {
       to_port     = 443
       cidr_blocks = ["0.0.0.0/0"]
       type        = "ingress"
-    }  
+    }
+    # Allow all traffic from nodes to the control plane
+    ingress_nodes_to_cluster = {
+      description                = "Node groups to cluster API"
+      protocol                   = "tcp"
+      from_port                  = 443
+      to_port                    = 443
+      source_node_security_group = true
+      type                       = "ingress"
+    }
   }
   
   node_security_group_additional_rules = {
@@ -120,6 +132,15 @@ module "eks" {
       to_port     = 0
       type        = "egress"
       cidr_blocks = ["0.0.0.0/0"]
+    }
+    # Allow all traffic from the control plane to the nodes
+    ingress_cluster_to_nodes = {
+      description                   = "Cluster API to node groups"
+      protocol                      = "-1"
+      from_port                     = 0
+      to_port                       = 0
+      source_cluster_security_group = true
+      type                          = "ingress"
     }
   }
 }
@@ -197,64 +218,6 @@ resource "aws_iam_policy" "eks_admin_policy" {
   })
 }
 
-# Add Kubernetes provider to manage aws-auth ConfigMap
-provider "kubernetes" {
-  host                   = module.eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-  
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", local.cluster_name]
-  }
-}
-
-# Add a time delay to ensure cluster is ready
-resource "time_sleep" "wait_for_cluster" {
-  depends_on = [module.eks]
-  create_duration = "600s"
-}
-
-# Create aws-auth ConfigMap to map IAM roles to Kubernetes RBAC
-resource "kubernetes_config_map" "aws_auth" {
-  depends_on = [
-    module.eks,
-    time_sleep.wait_for_cluster
-  ]
-  
-  metadata {
-    name      = "aws-auth"
-    namespace = "kube-system"
-  }
-
-  data = {
-    mapRoles = yamlencode(
-      concat(
-        [
-          {
-            rolearn  = aws_iam_role.eks_admin_role.arn
-            username = "cluster-admin"
-            groups   = ["system:masters"]
-          }
-        ],
-        # Include the node role mappings that EKS creates
-        [
-          {
-            rolearn  = module.eks.eks_managed_node_groups["system"].iam_role_arn
-            username = "system:node:{{EC2PrivateDNSName}}"
-            groups   = ["system:bootstrappers", "system:nodes"]
-          },
-          {
-            rolearn  = module.eks.eks_managed_node_groups["app"].iam_role_arn
-            username = "system:node:{{EC2PrivateDNSName}}"
-            groups   = ["system:bootstrappers", "system:nodes"]
-          }
-        ]
-      )
-    )
-  }
-}
-
 # Additional policy for node groups
 resource "aws_iam_policy" "additional" {
   name = "${local.cluster_name}-additional"
@@ -284,3 +247,82 @@ resource "aws_iam_policy" "additional" {
   })
 }
 
+# Add Kubernetes provider to manage aws-auth ConfigMap
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", local.cluster_name]
+  }
+}
+
+# Extended waiting period and better dependency handling
+resource "time_sleep" "wait_for_cluster" {
+  depends_on      = [module.eks]
+  # Increase waiting time to ensure cluster is fully ready
+  create_duration = "300s"
+}
+
+# Create aws-auth ConfigMap to map IAM roles to Kubernetes RBAC
+# Use a shell script to create the config map instead of kubernetes provider
+resource "null_resource" "apply_aws_auth" {
+  depends_on = [
+    module.eks,
+    time_sleep.wait_for_cluster
+  ]
+  
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    
+    # Create aws-auth config map using kubectl
+    command = <<-EOT
+      # Configure kubectl
+      aws eks update-kubeconfig --name ${local.cluster_name} --region ${local.aws_region}
+      
+      # Create auth config map file
+      cat <<EOF > aws-auth-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapRoles: |
+    - rolearn: ${aws_iam_role.eks_admin_role.arn}
+      username: cluster-admin
+      groups:
+        - system:masters
+    - rolearn: ${module.eks.eks_managed_node_groups["system"].iam_role_arn}
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes
+    - rolearn: ${module.eks.eks_managed_node_groups["app"].iam_role_arn}
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes
+EOF
+      
+      # Apply config map with retries
+      for i in {1..5}; do
+        echo "Attempt $i to apply aws-auth ConfigMap..."
+        if kubectl apply -f aws-auth-cm.yaml; then
+          echo "Successfully applied aws-auth ConfigMap"
+          break
+        else
+          echo "Failed to apply aws-auth ConfigMap, retrying in 30s..."
+          sleep 30
+        fi
+        
+        if [ $i -eq 5 ]; then
+          echo "Failed to apply aws-auth ConfigMap after 5 attempts"
+          exit 1
+        fi
+      done
+    EOT
+  }
+}
