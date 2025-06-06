@@ -1,328 +1,44 @@
-################
-# EKS Module 
-################
-
 module "eks" {
-  source                                 = "git::https://github.com/nasir19noor/terraform.git//aws/modules/eks"
-  cluster_name                           = local.cluster_name
-  cluster_version                        = local.cluster_version
-  # cloudwatch_log_group_retention_in_days = local.cloudwatch_log_group_retention_in_days
+  source  = "git::https://github.com/nasir19noor/terraform.git//aws/modules/eks"
 
+  cluster_name    = local.name
+  cluster_version = "1.32"
+  cluster_endpoint_public_access = true
+
+  # EKS Addons
   cluster_addons = {
-    kube-proxy = {}
-    vpc-cni    = {}
-    coredns    = {}
+    coredns                = {}
+    eks-pod-identity-agent = {}
+    kube-proxy             = {}
+    vpc-cni                = {}
   }
 
-  vpc_id                        = local.vpc_id
-  subnet_ids                    = [local.subnet-1_id, local.subnet-2_id]
-  control_plane_subnet_ids      = [local.subnet-1_id, local.subnet-2_id]
-  create_cluster_security_group = local.create_cluster_security_group
-  create_node_security_group    = local.create_node_security_group
-
-  # Modified endpoint configuration - ensure both public and private access
-  cluster_endpoint_public_access = true  
-  cluster_endpoint_private_access = true 
-  # Make sure you're running Terraform from a machine with an IP in this range
-  # If needed, narrow this to your specific IPs
-  cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]   
-
-  # EKS Managed Node Group(s)
-  eks_managed_node_group_defaults = {
-    ami_type               = "AL2_x86_64"
-    disk_size              = 50
-    instance_types         = ["t3.medium"]
-    vpc_security_group_ids = []
-    
-    # Add the additional IAM policy
-    iam_role_additional_policies = {
-      additional = aws_iam_policy.additional.arn
-    }
-  }
+  vpc_id     = local.vpc_id
+  subnet_ids = [local.subnet-1_id, local.subnet-2_id]
 
   eks_managed_node_groups = {
-    # Primary node group - runs critical system pods
-    system = {
-      name = "system-nodes"
-      
-      min_size     = 1
-      max_size     = 1
+    nasir = {
+      ami_type       = "AL2_x86_64"
+      instance_types = ["t3.small"]
+
+      min_size = 1
+      max_size = 2
       desired_size = 1
-
-      subnet_ids = [local.subnet-1_id, local.subnet-2_id]
-      capacity_type = "ON_DEMAND"
-
-      labels = {
-        role = "system"
-      }
-
-      tags = {
-        "k8s.io/cluster-autoscaler/enabled"             = "true"
-        "k8s.io/cluster-autoscaler/${local.cluster_name}" = "owned"
-      }
     }
+  }
+}
 
-    # Application node group - runs your application workloads
-    app = {
-      name = "app-nodes"
-      
-      min_size     = 1
-      max_size     = 1
-      desired_size = 1
-
-      subnet_ids = [local.subnet-1_id, local.subnet-2_id]
-
-      instance_types = ["t3.micro"]
-      capacity_type  = "ON_DEMAND"
-
-      labels = {
-        role = "app"
-        namespace = "nasir"
-      }
-
-      taints = {
-        dedicated = {
-          key    = "dedicated"
-          value  = "app"
-          effect = "NO_SCHEDULE"
+  # Access Entries for EKS API
+  access_entries = {
+    nasir = {
+      principal_arn     = "arn:aws:iam::593793047751:user/nasir"
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
         }
       }
-
-      tags = {
-        "k8s.io/cluster-autoscaler/enabled"             = "true"
-        "k8s.io/cluster-autoscaler/${local.cluster_name}" = "owned"
-      }
     }
   }
-
-  # Enhanced security group rules to ensure proper connectivity
-  cluster_security_group_additional_rules = {
-    ingress_custom_rule_1 = {
-      description = "Allow inbound traffic from anywhere"
-      protocol    = "tcp"
-      from_port   = 443
-      to_port     = 443
-      cidr_blocks = ["0.0.0.0/0"]
-      type        = "ingress"
-    }
-    # Allow all traffic from nodes to the control plane
-    ingress_nodes_to_cluster = {
-      description                = "Node groups to cluster API"
-      protocol                   = "tcp"
-      from_port                  = 443
-      to_port                    = 443
-      source_node_security_group = true
-      type                       = "ingress"
-    }
-  }
-  
-  node_security_group_additional_rules = {
-    ingress_self_all = {
-      description = "Node to node all ports/protocols"
-      protocol    = "-1"
-      from_port   = 0
-      to_port     = 0
-      type        = "ingress"
-      self        = true
-    }
-    egress_all = {
-      description = "Node all egress"
-      protocol    = "-1"
-      from_port   = 0
-      to_port     = 0
-      type        = "egress"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
-    # Allow all traffic from the control plane to the nodes
-    ingress_cluster_to_nodes = {
-      description                   = "Cluster API to node groups"
-      protocol                      = "-1"
-      from_port                     = 0
-      to_port                       = 0
-      source_cluster_security_group = true
-      type                          = "ingress"
-    }
-  }
-}
-
-################################################################################
-# Supporting Resources
-################################################################################
-
-# Get current AWS account ID
-data "aws_caller_identity" "current" {}
-
-# Create EKS Admin IAM Role
-resource "aws_iam_role" "eks_admin_role" {
-  name = "${local.cluster_name}-admin-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-        }
-        Action = "sts:AssumeRole"
-        Condition = {}
-      },
-    ]
-  })
-
-  tags = {
-    Name = "${local.cluster_name}-admin-role"
-  }
-}
-
-# Attach Amazon EKS cluster policy to admin role
-resource "aws_iam_role_policy_attachment" "eks_admin_amazon_eks_cluster_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.eks_admin_role.name
-}
-
-# Attach Amazon EKS service policy to admin role
-resource "aws_iam_role_policy_attachment" "eks_admin_amazon_eks_service_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
-  role       = aws_iam_role.eks_admin_role.name
-}
-
-# Attach Admin access policy to the role
-resource "aws_iam_role_policy_attachment" "eks_admin_policy" {
-  policy_arn = aws_iam_policy.eks_admin_policy.arn
-  role       = aws_iam_role.eks_admin_role.name
-}
-
-# Create custom policy for EKS admin
-resource "aws_iam_policy" "eks_admin_policy" {
-  name        = "${local.cluster_name}-admin-policy"
-  description = "Policy that gives full access to EKS resources"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = [
-          "eks:*",
-          "ec2:DescribeInstances",
-          "ec2:DescribeRouteTables",
-          "ec2:DescribeSecurityGroups",
-          "ec2:DescribeSubnets",
-          "ec2:DescribeVpcs",
-          "iam:ListRoles"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-# Additional policy for node groups
-resource "aws_iam_policy" "additional" {
-  name = "${local.cluster_name}-additional"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "ec2:Describe*",
-        ]
-        Effect   = "Allow"
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:CreateLogGroup",
-          "logs:DescribeLogStreams",
-          "logs:PutLogEvents",
-          "logs:PutRetentionPolicy"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-# Add Kubernetes provider to manage aws-auth ConfigMap
-provider "kubernetes" {
-  host                   = module.eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-  
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", local.cluster_name]
-  }
-}
-
-# Extended waiting period and better dependency handling
-resource "time_sleep" "wait_for_cluster" {
-  depends_on      = [module.eks]
-  # Increase waiting time to ensure cluster is fully ready
-  create_duration = "300s"
-}
-
-# Create aws-auth ConfigMap to map IAM roles to Kubernetes RBAC
-# Use a shell script to create the config map instead of kubernetes provider
-resource "null_resource" "apply_aws_auth" {
-  depends_on = [
-    module.eks,
-    time_sleep.wait_for_cluster
-  ]
-  
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    
-    # Create aws-auth config map using kubectl
-    command = <<-EOT
-      # Configure kubectl
-      aws eks update-kubeconfig --name ${local.cluster_name} --region ${local.aws_region}
-      
-      # Create auth config map file
-      cat <<EOF > aws-auth-cm.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: aws-auth
-  namespace: kube-system
-data:
-  mapRoles: |
-    - rolearn: ${aws_iam_role.eks_admin_role.arn}
-      username: cluster-admin
-      groups:
-        - system:masters
-    - rolearn: ${module.eks.eks_managed_node_groups["system"].iam_role_arn}
-      username: system:node:{{EC2PrivateDNSName}}
-      groups:
-        - system:bootstrappers
-        - system:nodes
-    - rolearn: ${module.eks.eks_managed_node_groups["app"].iam_role_arn}
-      username: system:node:{{EC2PrivateDNSName}}
-      groups:
-        - system:bootstrappers
-        - system:nodes
-EOF
-      
-      # Apply config map with retries
-      for i in {1..5}; do
-        echo "Attempt $i to apply aws-auth ConfigMap..."
-        if kubectl apply -f aws-auth-cm.yaml; then
-          echo "Successfully applied aws-auth ConfigMap"
-          break
-        else
-          echo "Failed to apply aws-auth ConfigMap, retrying in 30s..."
-          sleep 30
-        fi
-        
-        if [ $i -eq 5 ]; then
-          echo "Failed to apply aws-auth ConfigMap after 5 attempts"
-          exit 1
-        fi
-      done
-    EOT
-  }
-}

@@ -220,7 +220,7 @@ output "self_managed_node_groups_autoscaling_group_names" {
   value       = module.eks.self_managed_node_groups_autoscaling_group_names
 }
 
-output "eks_admin_role_arn" {
-  description = "ARN of the EKS admin IAM role"
-  value       = aws_iam_role.eks_admin_role.arn
-}
+# output "eks_admin_role_arn" {
+#   description = "ARN of the EKS admin IAM role"
+#   value       = aws_iam_role.eks_admin_role.arn
+# }
